@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MLATech | ImpactTek Defense Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace']
+                    },
+                    colors: {
+                        brand: { 400: '#22d3ee', 500: '#06b6d4', 600: '#0891b2' },
+                        soc: { bg: '#020617', panel: '#0f172a', border: '#1e293b' }
+                    },
+                    boxShadow: {
+                        glow: '0 0 0 1px rgba(34,211,238,0.10), 0 10px 40px rgba(2,6,23,0.35)'
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background:
+                radial-gradient(circle at top right, rgba(34,211,238,0.08), transparent 22%),
+                radial-gradient(circle at bottom left, rgba(8,145,178,0.06), transparent 28%),
+                #020617;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .glass {
+            background: rgba(15, 23, 42, 0.84);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .slide-up { animation: slideUp 0.28s ease-out forwards; }
+        @keyframes slideUp {
+            from { transform: translateY(12px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .noise {
+            position: relative;
+        }
+        .noise::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+            background-size: 24px 24px;
+            mask-image: radial-gradient(circle at center, black, transparent 90%);
+        }
+    </style>
+</head>
+<body class="flex h-screen w-full">
+    <div id="root" class="w-full h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const TICKET = {
+            id: 3,
+            title: "Suspicious Encoded PowerShell",
+            sev: "SEV-1",
+            time: "1h ago",
+            status: "New",
+            desc: "Endpoint telemetry indicates that a browser process spawned PowerShell and executed an encoded command shortly afterward.",
+            requires: "Decoded Suspicious IP Address",
+            gradeLogic: (ans) => ans.trim().includes("198.51.100.55"),
+            shiftLeadHtml: `
+                <p class="mb-2 text-brand-400 font-bold text-[10px] uppercase tracking-widest">Shift-Lead Review</p>
+                <p class="mb-2">1. Pivot into the PowerShell execution related to the alert window and identify the encoded command value.</p>
+                <p class="mb-2">2. Decode the Base64 string in PowerShell using Unicode decoding.</p>
+                <p class="mb-2"><code class="bg-black px-1.5 py-0.5 rounded text-cyan-400">[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String("&lt;blob&gt;"))</code></p>
+                <p class="mb-2">3. The decoded content reveals a suspicious destination reference.</p>
+                <p>4. Extracted IOC: <b>198.51.100.55</b>.</p>
+            `
+        };
+
+        function App() {
+            const [ticket, setTicket] = useState({ ...TICKET, analyst: null, status: 'New' });
+            const [activeTab, setActiveTab] = useState('intelligence');
+            const [verdict, setVerdict] = useState('');
+            const [ioc, setIoc] = useState('');
+            const [feedback, setFeedback] = useState(null);
+            const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            const handleAction = (action) => {
+                if (action === 'ack' && ticket.status === 'New') {
+                    setTicket(prev => ({ ...prev, status: 'Active', analyst: 'Analyst_01' }));
+                } else if (action === 'esc' && ticket.status !== 'Closed' && ticket.status !== 'Escalated') {
+                    setFeedback({
+                        type: 'info',
+                        text: ticket.status === 'Active'
+                            ? "Escalation accepted. Browser-spawned encoded PowerShell warrants deeper review."
+                            : "Acknowledge the case first, then escalate if the execution proves suspicious.",
+                        showExp: false
+                    });
+                    setTicket(prev => ({ ...prev, status: 'Escalated' }));
+                }
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (ticket.status === 'Escalated') return;
+
+                const correct = verdict === 'True Positive' && ticket.gradeLogic(ioc);
+
+                setFeedback({
+                    type: correct ? 'success' : 'error',
+                    text: correct
+                        ? "Disposition Verified. Triage report accepted."
+                        : "Validation Failed. Re-check the encoded PowerShell activity and decode the command content.",
+                    showExp: false
+                });
+
+                setTicket(prev => ({ ...prev, status: 'Closed' }));
+            };
+
+            return (
+                <div className="flex h-screen w-full relative noise">
+                    <aside className={`fixed inset-y-0 left-0 z-50 w-80 bg-soc-panel border-r border-soc-border flex flex-col transition-transform md:relative md:translate-x-0 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                        <div className="p-6 border-b border-soc-border flex justify-between items-center">
+                            <div>
+                                <h1 className="text-2xl font-black tracking-tighter text-white flex items-center gap-2">
+                                    <i data-lucide="shield-alert" className="text-brand-500"></i>
+                                    MLATech
+                                </h1>
+                                <p className="text-[9px] text-slate-500 uppercase tracking-[0.3em] mt-1 font-bold">ImpactTek Defense Suite</p>
+                            </div>
+                            <button onClick={() => setIsMobileOpen(false)} className="md:hidden text-slate-400">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+
+                        <div className="p-4 bg-slate-900/50 border-b border-soc-border text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="list" className="w-4 h-4"></i>
+                            Alert Queue
+                        </div>
+
+                        <nav className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                            <div className="p-4 rounded-2xl border bg-brand-500/10 border-brand-500 shadow-glow cursor-default">
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] font-black px-2 py-0.5 rounded-sm uppercase tracking-wider bg-orange-500 text-white">
+                                        {ticket.sev}
+                                    </span>
+                                    <span className={`text-[10px] font-bold uppercase ${
+                                        ticket.status === 'New'
+                                            ? 'text-brand-400'
+                                            : ticket.status === 'Active'
+                                            ? 'text-yellow-400'
+                                            : ticket.status === 'Closed'
+                                            ? 'text-emerald-400'
+                                            : 'text-red-400'
+                                    }`}>
+                                        {ticket.status}
+                                    </span>
+                                </div>
+                                <h3 className="text-sm font-semibold text-slate-100">{ticket.title}</h3>
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-3">{ticket.time}</p>
+                            </div>
+                        </nav>
+                    </aside>
+
+                    <main className="flex-1 flex flex-col bg-soc-bg overflow-hidden relative">
+                        <header className="glass p-4 md:p-6 border-b border-soc-border flex justify-between items-center z-10 sticky top-0">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setIsMobileOpen(true)} className="md:hidden p-2 text-slate-300">
+                                    <i data-lucide="menu"></i>
+                                </button>
+                                <div>
+                                    <h2 className="text-sm md:text-xl font-bold text-white tracking-tight">
+                                        CASE_3003 // {ticket.title}
+                                    </h2>
+                                    <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">
+                                        Assigned Analyst: {ticket.analyst || 'WAITING_FOR_ACK'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => handleAction('ack')}
+                                    disabled={ticket.status !== 'New'}
+                                    className="px-4 py-2 text-[10px] font-bold bg-slate-800 border border-slate-600 rounded-lg hover:bg-slate-700 disabled:opacity-50 uppercase tracking-widest transition-all"
+                                >
+                                    Acknowledge
+                                </button>
+                                <button
+                                    onClick={() => handleAction('esc')}
+                                    disabled={ticket.status === 'Closed' || ticket.status === 'Escalated'}
+                                    className="px-4 py-2 text-[10px] font-bold bg-red-900/20 text-red-400 border border-red-900/50 rounded-lg hover:bg-red-900/40 disabled:opacity-50 uppercase tracking-widest transition-all"
+                                >
+                                    Escalate
+                                </button>
+                            </div>
+                        </header>
+
+                        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 custom-scrollbar pb-24">
+                            <div className="flex gap-8 border-b border-soc-border overflow-x-auto hide-scroll">
+                                {['intelligence', 'process_context', 'analyst_notes'].map(tab => (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setActiveTab(tab)}
+                                        className={`pb-4 text-[11px] font-bold uppercase tracking-[0.15em] transition-all whitespace-nowrap border-b-2 ${
+                                            activeTab === tab
+                                                ? 'text-brand-400 border-brand-400'
+                                                : 'text-slate-500 border-transparent hover:text-slate-300'
+                                        }`}
+                                    >
+                                        {tab.replace(/_/g, ' ')}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <section className="min-h-[280px]">
+                                {activeTab === 'intelligence' && (
+                                    <div className="slide-up space-y-6 max-w-4xl">
+                                        <p className="text-slate-300 text-sm md:text-base leading-relaxed">
+                                            {ticket.desc}
+                                        </p>
+
+                                        <div className="bg-black/40 border border-soc-border p-6 rounded-xl font-mono text-xs text-emerald-500 shadow-inner space-y-2">
+                                            <p className="text-brand-500 font-bold">// SYSTEM DIRECTIVE</p>
+                                            <p>&gt; Review endpoint logs around browser-driven script execution.</p>
+                                            <p>&gt; Identify the encoded PowerShell activity tied to this alert window.</p>
+                                            <p>&gt; Decode the observed command content.</p>
+                                            <p>&gt; Extract Primary IOC: <span className="text-white font-bold">{ticket.requires}</span></p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'process_context' && (
+                                    <div className="slide-up max-w-4xl space-y-6">
+                                        <div className="grid md:grid-cols-3 gap-4">
+                                            <div className="glass rounded-2xl p-5 border border-white/5">
+                                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Parent Process</p>
+                                                <p className="font-mono text-sm text-slate-100">msedge.exe</p>
+                                            </div>
+                                            <div className="glass rounded-2xl p-5 border border-white/5">
+                                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Child Process</p>
+                                                <p className="font-mono text-sm text-slate-100">powershell.exe</p>
+                                            </div>
+                                            <div className="glass rounded-2xl p-5 border border-white/5">
+                                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Behavior</p>
+                                                <p className="font-mono text-sm text-slate-100">EncodedCommand observed</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="glass rounded-2xl p-6 border border-white/5">
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3">Analyst Guidance</p>
+                                            <p className="text-slate-300 text-sm leading-relaxed">
+                                                Focus on the execution chain and the encoded PowerShell content itself. The answer is not the parent process name; the answer is the decoded artifact hidden inside the command.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'analyst_notes' && (
+                                    <div className="slide-up max-w-4xl space-y-4">
+                                        <div className="glass rounded-2xl p-6 border border-white/5">
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3">Case Notes</p>
+                                            <ul className="space-y-3 text-sm text-slate-300 leading-relaxed">
+                                                <li>- Treat this as suspicious script execution until the encoded content is reviewed.</li>
+                                                <li>- Use the logs to recover what the command was doing, not just how it was launched.</li>
+                                                <li>- Submit only the extracted IOC in the disposition form.</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="glass rounded-2xl p-6 md:p-8 shadow-2xl border border-white/5 max-w-4xl">
+                                <h3 className="text-xs font-bold text-brand-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                                    <i data-lucide="clipboard-check" className="w-5 h-5"></i>
+                                    Incident Disposition Engine
+                                </h3>
+
+                                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Final Verdict</label>
+                                        <select
+                                            required
+                                            value={verdict}
+                                            onChange={e => setVerdict(e.target.value)}
+                                            disabled={ticket.status === 'Escalated'}
+                                            className="w-full bg-soc-bg border border-soc-border p-4 rounded-xl text-sm focus:border-brand-500 outline-none transition-all disabled:opacity-50"
+                                        >
+                                            <option value="">Select Verdict...</option>
+                                            <option value="True Positive">True Positive (Confirmed Threat)</option>
+                                            <option value="False Positive">False Positive (Benign Activity)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                                            Extracted IOC ({ticket.requires})
+                                        </label>
+                                        <input
+                                            required
+                                            type="text"
+                                            value={ioc}
+                                            onChange={e => setIoc(e.target.value)}
+                                            disabled={ticket.status === 'Escalated'}
+                                            placeholder="Enter extracted artifact..."
+                                            className="w-full bg-soc-bg border border-soc-border p-4 rounded-xl text-sm font-mono focus:border-brand-500 outline-none transition-all disabled:opacity-50"
+                                        />
+                                    </div>
+
+                                    <button
+                                        disabled={ticket.status === 'Escalated'}
+                                        className="md:col-span-2 py-4 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold rounded-xl transition-all shadow-lg text-[10px] tracking-[0.2em] uppercase"
+                                    >
+                                        Submit Triage Report
+                                    </button>
+                                </form>
+
+                                {feedback && (
+                                    <div className={`mt-8 p-6 rounded-xl border slide-up ${
+                                        feedback.type === 'success'
+                                            ? 'bg-emerald-500/10 border-emerald-500/30'
+                                            : feedback.type === 'info'
+                                            ? 'bg-blue-500/10 border-blue-500/30'
+                                            : 'bg-red-500/10 border-red-500/30'
+                                    }`}>
+                                        <div className="flex justify-between items-center flex-wrap gap-4">
+                                            <p className={`font-bold text-xs uppercase tracking-wider flex items-center gap-2 ${
+                                                feedback.type === 'success'
+                                                    ? 'text-emerald-400'
+                                                    : feedback.type === 'info'
+                                                    ? 'text-blue-400'
+                                                    : 'text-red-400'
+                                            }`}>
+                                                <i data-lucide={feedback.type === 'success' ? 'check-circle' : 'alert-circle'} className="w-5 h-5"></i>
+                                                {feedback.text}
+                                            </p>
+
+                                            <button
+                                                onClick={() => setFeedback({ ...feedback, showExp: !feedback.showExp })}
+                                                className="text-[10px] bg-white/10 px-4 py-2 rounded-lg hover:bg-white/20 uppercase font-bold tracking-widest transition-all"
+                                            >
+                                                {feedback.showExp ? 'Hide Review' : 'Request Shift-Lead Review'}
+                                            </button>
+                                        </div>
+
+                                        {feedback.showExp && (
+                                            <div
+                                                className="mt-6 pt-6 border-t border-white/10 text-slate-300 text-sm leading-relaxed slide-up"
+                                                dangerouslySetInnerHTML={{ __html: ticket.shiftLeadHtml }}
+                                            />
+                                        )}
+                                    </div>
+                                )}
+                            </section>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
